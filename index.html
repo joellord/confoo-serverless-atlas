@@ -1,0 +1,74 @@
+<html>
+  <body>
+    <div id="loginForm">
+      <form>
+        <input type="text" id="email" value="test@test.com"/><br/>
+        <input type="text" id="password" value="test123"/><br/>
+        <button type="button" id="loginBtn">Login</button>
+        <button type="button" id="registerBtn">Register</button>
+      </form>
+    </div>
+    <pre id="loginResponse"></pre>
+
+    <div id="meetingResponse"></div>
+    <div id="chatMessages"></div>
+
+    <div id="chatForm">
+      <form>
+        <input type="text" id="chatMessage" /><br/>
+        <button type="button" id="chatBtn">Send</button>
+      </form>
+
+    </div>
+  </body>
+
+  <script src="https://unpkg.com/realm-web/dist/bundle.iife.js"></script>
+  <script>
+const APP_ID = "application-1-sfqlv";
+// let email = document.querySelector("#email");
+// let password = document.querySelector("#password");
+// let loginBtn = document.querySelector("#loginBtn");
+const app = new Realm.App({ id: APP_ID });
+const params = new URLSearchParams(window.location.search);
+const meetingId = params.get("id");
+let mongodb, collection;
+const oid = Realm.BSON.ObjectId;
+
+const login = async () => {
+  // Add your App ID
+  // Create an anonymous credential
+  // console.log(email.value, password.value);
+  const credentials = Realm.Credentials.emailPassword(email.value, password.value);
+  // const credentials = Realm.Credentials.anonymous();
+
+  // Authenticate the user
+  const user = await app.logIn(credentials);
+
+  document.querySelector("#loginResponse").textContent = JSON.stringify(user.id,2);
+
+  let meeting = await user.functions.getMeeting(meetingId);
+  meetingResponse.textContent = JSON.stringify(meeting);
+
+  mongodb = app.currentUser.mongoClient("mongodb-atlas");
+  collection = await mongodb.db("confoo").collection("meetings");
+  for await (const change of collection.watch()) {
+    console.log(change);
+    let messages = change.fullDocument.chatMessages;
+    let newMessage = messages[messages.length];
+    chatMessages.textContent = newMessage;
+  }
+}
+loginBtn.addEventListener("click", login);
+
+const registerUser = async () => {
+  await app.emailPasswordAuth.registerUser({ email: email.value, password: password.value });
+  alert("User created");
+}
+registerBtn.addEventListener("click", registerUser);
+
+const sendMessage = async () => {
+  let result = await collection.updateOne({_id: new oid(meetingId)}, {$push: {chatMessages: chatMessage.value}});
+}
+chatBtn.addEventListener("click", sendMessage);
+  </script>
+</html>
